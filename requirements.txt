@@ -2,3 +2,5 @@ Flask
 Quart
 Telethon
 asyncio
+pyfiglet
+requests
