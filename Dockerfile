@@ -2,7 +2,7 @@
 FROM python:3.8
 
 # Defina o diretório de trabalho
-WORKDIR /app
+WORKDIR /
 
 # Copie o arquivo de requisitos primeiro para aproveitar o cache do Docker
 COPY requirements.txt .
