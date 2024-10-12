@@ -158,25 +158,12 @@ async def execute():
     except subprocess.CalledProcessError as e:
         flash(f"Erro ao executar comando: {e.output}", 'danger')
         return jsonify({"output": e.output})
-    from flask import Flask, render_template, request, jsonify
-import subprocess
 
-app = Flask(__name__)
+# Adicionando a rota para renderizar terminal.html
+@app.route('/terminal')
+async def terminal():
+    return await render_template('terminal.html')
 
-@app.route('/')
-def index():
-    return render_template('terminal.html')
-
-@app.route('/execute', methods=['POST'])
-def execute():
-    command = request.json.get('command')
-    
-    try:
-        # Executa o comando no terminal do servidor
-        result = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, text=True)
-        return jsonify({"output": result})
-    except subprocess.CalledProcessError as e:
-        return jsonify({"output": e.output})
-
+# Executar o aplicativo
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
