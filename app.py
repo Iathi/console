@@ -8,8 +8,12 @@ api_id = 24010179
 api_hash = "7ddc83d894b896975083f985effffe11"
 bot_token = "7498558962:AAF0K2FbG1w8DlAWXvT9sPpPEZWe54LOYQ"
 
+# Verificar se o token é válido
+if not bot_token or ":" not in bot_token:
+    raise ValueError("O bot token fornecido não é válido. Verifique e tente novamente.")
+
 # Inicializando o bot
-bot = TelegramClient("bot", api_id, api_hash).start(bot_token=bot_token)
+bot = TelegramClient("bot_session", api_id, api_hash)
 
 # Expressão regular para validar e-mail
 email_regex = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
@@ -43,8 +47,8 @@ async def new_member(event):
         if user_id not in users_restricted:
             users_restricted[user_id] = True  # Marca o usuário como restrito
             welcome_message = (
-                f"👋 Bem-vindo {event.user.first_name}! Envie um e-mail válido para liberar seu acesso ao grupo.\n\n"
-                "🔹 O que você encontra no grupo?\n"
+                f"\U0001F44B Bem-vindo {event.user.first_name}! Envie um e-mail válido para liberar seu acesso ao grupo.\n\n"
+                "\U0001F4A1 O que você encontra no grupo?\n"
                 "✅ Automação para:\n"
                 "  - Facebook\n"
                 "  - Instagram\n"
@@ -54,7 +58,7 @@ async def new_member(event):
                 "✅ Novidades e atualizações sobre as ferramentas de automação\n"
                 "✅ Dicas de engajamento para aumentar o alcance nas redes sociais\n"
                 "✅ Troca de experiências com outros usuários\n\n"
-                "🚀 Teste grátis! Acesse o nosso Site: https://bio.site/AutoCommenterPro."
+                "\U0001F680 Teste grátis! Acesse o nosso Site: https://bio.site/AutoCommenterPro."
             )
             await bot.send_message(group_id, welcome_message)
 
@@ -85,5 +89,10 @@ async def check_email(event):
             await event.delete()  # Apaga a mensagem inválida
             await bot.send_message(user_id, "❌ Sua mensagem foi apagada. Envie um e-mail válido para continuar no grupo.")
 
-print("Bot está rodando...")
-bot.run_until_disconnected()
+async def main():
+    await bot.start(bot_token=bot_token)
+    print("Bot está rodando...")
+    await bot.run_until_disconnected()
+
+if __name__ == "__main__":
+    asyncio.run(main())
