@@ -4,3 +4,4 @@ Telethon
 asyncio
 pyfiglet
 requests
+dnspython
