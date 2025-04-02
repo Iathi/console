@@ -1,169 +1,89 @@
-from quart import Quart, render_template, request, redirect, url_for, session, jsonify, flash
-from telethon import TelegramClient
-from telethon.sessions import StringSession
-import os
+from telethon import TelegramClient, events
+import re
 import asyncio
-import subprocess
+import dns.resolver  # Para verificar se o e-mail tem servidor ativo
 
-app = Quart(__name__)
-app.secret_key = 'seu_segredo_aqui'  # O segredo é necessário para usar sessões e flash
+# Configurações do bot
+api_id = 24010179  
+api_hash = "7ddc83d894b896975083f985effffe11"
+bot_token = "7498558962:AAF0K2FbG1w8DlAWXvT9sPpPEZWe54LOYQ"
 
-# API ID e Hash
-api_id = '24010179'  # Substitua pelo seu API ID
-api_hash = '7ddc83d894b896975083f985effffe11'  # Substitua pelo seu API Hash
+# Inicializando o bot
+bot = TelegramClient("bot", api_id, api_hash).start(bot_token=bot_token)
 
-client = None
-sending = False  # Variável global para controlar o envio
-stop_sending_event = asyncio.Event()
+# Expressão regular para validar e-mail
+email_regex = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
 
-# Função para garantir que o diretório de sessões exista
-def ensure_sessions_dir():
-    if not os.path.exists('sessions'):
-        os.makedirs('sessions')
+# ID do grupo
+group_id = -1002222583428
 
-# Função assíncrona para inicializar o cliente
-async def async_start_client(phone_number):
-    global client
-    session_file = f'sessions/{phone_number}.session'
-    ensure_sessions_dir()
-    
-    if os.path.exists(session_file):
-        with open(session_file, 'r') as f:
-            session_string = f.read().strip()
-            client = TelegramClient(StringSession(session_string), api_id, api_hash)
-    else:
-        client = TelegramClient(StringSession(), api_id, api_hash)
-        await client.connect()
-        if not await client.is_user_authorized():
-            await client.send_code_request(phone_number)
-            return False  # Necessário verificar o código
-        session_string = client.session.save()
-        with open(session_file, 'w') as f:
-            f.write(session_string)
-    
-    await client.connect()
-    return True  # Login bem-sucedido
+# Dicionário para rastrear usuários que precisam enviar um e-mail
+users_restricted = {}
 
-# Página de login
-@app.route('/login', methods=['GET', 'POST'])
-async def login():
-    if request.method == 'POST':
-        phone_number = (await request.form)['phone_number']
-        session['phone_number'] = phone_number
-        if not await async_start_client(phone_number):
-            flash('Código de verificação enviado! Verifique seu telefone.', 'info')
-            return redirect(url_for('verify_code'))
-        flash('Login bem-sucedido!', 'success')
-        return redirect(url_for('index'))
-    return await render_template('login.html')
+def save_email(user_name, email):
+    """ Salva o e-mail válido em um arquivo txt """
+    with open("emails.txt", "a", encoding="utf-8") as file:
+        file.write(f"{user_name} - {email}\n")
 
-# Verificação de código após o login
-@app.route('/verify_code', methods=['GET', 'POST'])
-async def verify_code():
-    if request.method == 'POST':
-        code = (await request.form)['code']
-        phone_number = session.get('phone_number')
-        if client and client.session:
-            try:
-                await client.sign_in(code=code)
-                # Após a verificação, salve a sessão
-                session_file = f'sessions/{phone_number}.session'
-                session_string = client.session.save()
-                with open(session_file, 'w') as f:
-                    f.write(session_string)
-                flash('Verificação bem-sucedida! Você está logado.', 'success')
-                return redirect(url_for('index'))
-            except Exception as e:
-                flash(f"Erro ao verificar o código: {e}", 'danger')
-    return await render_template('verify_code.html')
-
-# Página inicial
-@app.route('/')
-async def index():
-    if 'phone_number' not in session:
-        flash('Você precisa estar logado para acessar esta página.', 'warning')
-        return redirect(url_for('login'))
-
-    phone_number = session.get('phone_number')
-
-    if client is None or not client.is_connected():
-        await async_start_client(phone_number)
-
+def check_mx_record(email):
+    """ Verifica se o e-mail tem um servidor de e-mail ativo """
     try:
-        dialogs = await client.get_dialogs()
-        groups = [(dialog.id, dialog.name) for dialog in dialogs if dialog.is_group]
-        return await render_template('index.html', groups=groups)
-    except Exception as e:
-        flash(f"Erro ao tentar listar os grupos: {str(e)}", 'danger')
-        return await render_template('index.html', groups=[])
+        domain = email.split('@')[1]  # Obtém o domínio (ex: gmail.com)
+        mx_records = dns.resolver.resolve(domain, 'MX')  # Verifica os registros MX
+        return bool(mx_records)  # Retorna True se encontrar registros
+    except:
+        return False  # Retorna False se o domínio não tiver e-mail
 
-# Envio de mensagens
-@app.route('/send_messages', methods=['POST'])
-async def send_messages():
-    global sending, stop_sending_event
-    form = await request.form
-    group_ids = form.getlist('groups')
-    delay = float(form['delay'])
-    message = form['message']
+@bot.on(events.ChatAction(chats=group_id))
+async def new_member(event):
+    """ Quando um usuário entra, pede o e-mail apenas uma vez """
+    if event.user_joined or event.user_added:
+        user_id = event.user_id
 
-    session['status'] = {'sending': [], 'errors': []}
-    sending = True
-    stop_sending_event.clear()
+        if user_id not in users_restricted:
+            users_restricted[user_id] = True  # Marca o usuário como restrito
+            welcome_message = (
+                f"👋 Bem-vindo {event.user.first_name}! Envie um e-mail válido para liberar seu acesso ao grupo.\n\n"
+                "🔹 O que você encontra no grupo?\n"
+                "✅ Automação para:\n"
+                "  - Facebook\n"
+                "  - Instagram\n"
+                "  - Telegram\n"
+                "  - WhatsApp\n\n"
+                "✅ Suporte técnico para resolver dúvidas e problemas\n"
+                "✅ Novidades e atualizações sobre as ferramentas de automação\n"
+                "✅ Dicas de engajamento para aumentar o alcance nas redes sociais\n"
+                "✅ Troca de experiências com outros usuários\n\n"
+                "🚀 Teste grátis! Acesse o nosso Site: https://bio.site/AutoCommenterPro."
+            )
+            await bot.send_message(group_id, welcome_message)
 
-    async def send_messages_task():
-        global sending
-        for group_id in group_ids:
-            if not sending:
-                break
-            try:
-                await client.send_message(int(group_id), message)
-                session['status']['sending'].append(f"✅ Mensagem enviada para o grupo {group_id}")
-                await asyncio.sleep(delay)
-            except Exception as e:
-                session['status']['errors'].append(f"❌ Erro ao enviar mensagem para o grupo {group_id}: {str(e)}")
+@bot.on(events.NewMessage(chats=group_id))
+async def check_email(event):
+    """ Verifica se o usuário enviou um e-mail válido, faz verificação real e apaga mensagens """
+    user_id = event.sender_id
+    message_text = event.raw_text
 
-        sending = False
-        stop_sending_event.set()
+    if user_id in users_restricted:
+        match = re.search(email_regex, message_text)
+        if match:
+            email = match.group()
 
-    await send_messages_task()
-    flash('Mensagens enviadas!', 'success')
-    return jsonify(session['status'])
+            # Verifica se o domínio tem servidor de e-mail real
+            if check_mx_record(email):
+                save_email(event.sender.first_name, email)  # Salva o e-mail
 
-# Verificação de status
-@app.route('/status_updates')
-async def status_updates():
-    if 'status' in session:
-        return jsonify(session['status'])
-    return jsonify({'sending': [], 'errors': []})
+                await asyncio.sleep(2)  # Aguarda 2 segundos antes de apagar
+                await event.delete()  # Apaga o e-mail do grupo
 
-# Parar o envio de mensagens
-@app.route('/stop_sending', methods=['POST'])
-async def stop_sending():
-    global sending
-    sending = False
-    stop_sending_event.set()
-    flash('Envio de mensagens interrompido.', 'warning')
-    return jsonify(session.get('status', {'sending': [], 'errors': []}))
+                del users_restricted[user_id]  # Libera o usuário
+                await bot.send_message(group_id, f"✅ Obrigado, {event.sender.first_name}! Seu acesso ao grupo foi liberado.")
+            else:
+                await event.delete()  # Apaga a mensagem inválida
+                await bot.send_message(user_id, "❌ O e-mail enviado não parece ser real. Envie um e-mail válido para continuar.")
+        else:
+            await event.delete()  # Apaga a mensagem inválida
+            await bot.send_message(user_id, "❌ Sua mensagem foi apagada. Envie um e-mail válido para continuar no grupo.")
 
-# Execução de comandos do terminal
-@app.route('/execute', methods=['POST'])
-async def execute():
-    command = (await request.json).get('command')
-    
-    try:
-        # Executa o comando no terminal do servidor
-        result = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, text=True)
-        flash(f"Comando executado com sucesso: {command}", 'success')
-        return jsonify({"output": result})
-    except subprocess.CalledProcessError as e:
-        flash(f"Erro ao executar comando: {e.output}", 'danger')
-        return jsonify({"output": e.output})
-
-# Adicionando a rota para renderizar terminal.html
-@app.route('/terminal')
-async def terminal():
-    return await render_template('terminal.html')
-
-# Executar o aplicativo
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+print("Bot está rodando...")
+bot.run_until_disconnected()
