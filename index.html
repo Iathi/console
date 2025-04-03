@@ -3,106 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Monitoramento - Telegram Bot</title>
+    <title>Painel do Bot</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #1e1e2e;
-            color: #ffffff;
+            background-color: #f4f4f4;
             text-align: center;
-            margin: 0;
-            padding: 0;
+            padding: 50px;
         }
         .container {
-            max-width: 900px;
-            margin: 20px auto;
+            background: white;
             padding: 20px;
-            background: #2a2a3a;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            margin: auto;
         }
-        h1 {
-            color: #00d4ff;
-        }
-        .status {
-            font-size: 18px;
+        input, button {
+            width: 100%;
             padding: 10px;
-            background: #007bff;
-            border-radius: 5px;
-            display: inline-block;
             margin-top: 10px;
-        }
-        .section {
-            margin-top: 20px;
-            padding: 15px;
-            background: #3a3a4a;
             border-radius: 5px;
+            border: 1px solid #ddd;
         }
-        ul {
-            list-style-type: none;
-            padding: 0;
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
         }
-        ul li {
-            background: #4a4a5a;
-            padding: 10px;
-            margin: 5px 0;
-            border-radius: 5px;
+        button:hover {
+            background-color: #218838;
         }
-        .logs {
-            background: #1e1e30;
-            padding: 10px;
-            height: 200px;
-            overflow-y: auto;
-            border-radius: 5px;
-            text-align: left;
+        #status {
+            margin-top: 15px;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Painel de Monitoramento - Telegram Bot</h1>
-        <div class="status">🔄 Carregando Status...</div>
-        
-        <div class="section">
-            <h2>Membros Online</h2>
-            <ul id="members-list">
-                <li>🔄 Carregando...</li>
-            </ul>
-        </div>
-
-        <div class="section">
-            <h2>Logs do Bot</h2>
-            <div class="logs" id="logs">
-                🔄 Carregando logs...
-            </div>
-        </div>
+        <h2>Conectar Bot do Telegram</h2>
+        <input type="text" id="bot_token" placeholder="Insira o Token do Bot">
+        <button onclick="connectBot()">Conectar</button>
+        <p id="status"></p>
     </div>
 
     <script>
-        async function fetchData(url, elementId, isList = false) {
-            try {
-                let response = await fetch(url);
-                let data = await response.json();
-                
-                if (isList) {
-                    let listHtml = data.members.map(member => `<li>👤 ${member}</li>`).join("");
-                    document.getElementById(elementId).innerHTML = listHtml || "<li>Nenhum membro online</li>";
-                } else {
-                    document.getElementById(elementId).innerText = data;
-                }
-            } catch (error) {
-                console.error("Erro ao buscar dados:", error);
-                document.getElementById(elementId).innerText = "Erro ao carregar";
+        function connectBot() {
+            let token = document.getElementById("bot_token").value;
+            let status = document.getElementById("status");
+
+            if (token.trim() === "") {
+                status.innerHTML = "Insira um token válido!";
+                status.style.color = "red";
+                return;
             }
-        }
 
-        function updateData() {
-            fetchData('/api/members', 'members-list', true);
-            fetchData('/api/logs', 'logs');
-        }
+            status.innerHTML = "Conectando...";
+            status.style.color = "blue";
 
-        setInterval(updateData, 3000);  
-        updateData();
+            fetch("/connect-bot", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ bot_token: token })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    status.innerHTML = "✅ Bot conectado com sucesso!";
+                    status.style.color = "green";
+                } else {
+                    status.innerHTML = "❌ Erro: " + data.error;
+                    status.style.color = "red";
+                }
+            })
+            .catch(error => {
+                status.innerHTML = "❌ Erro na requisição!";
+                status.style.color = "red";
+            });
+        }
     </script>
 </body>
 </html>
