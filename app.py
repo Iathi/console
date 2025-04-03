@@ -1,22 +1,22 @@
-import re
 import asyncio
+import re
 import dns.resolver
-from flask import Flask, request, jsonify
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 
-app = Flask(__name__)
+# Configurações do Telegram API
+api_id = "24010179"
+api_hash = "7ddc83d894b896975083f985effffe11"
+bot_token = "7498558962:AAF0K2FbIG1w8DlAWXvT9sPpPEZWe54LOYQ"
 
-# Configuração do Telegram API
-API_ID = 24010179    # Substitua pelo seu API_ID
-API_HASH = "7ddc83d894b896975083f985effffe11"  # Substitua pelo seu API_HASH
-BOT_TOKEN = "7498558962:AAF0K2FbIG1w8DlAWXvT9sPpPEZWe54LOYQ"  # Substitua pelo token do seu bot
-GROUP_ID = -1002222583428  # ID do grupo Telegram
-
-# Inicializa o bot
-bot = TelegramClient("bot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+# Inicializando o bot com uma sessão separada para evitar bloqueios
+bot = TelegramClient(StringSession(), api_id, api_hash).start(bot_token=bot_token)
 
 # Expressão regular para validar e-mail
 email_regex = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
+
+# ID do grupo
+group_id = -1002222583428
 
 # Dicionário para rastrear usuários que precisam enviar um e-mail
 users_restricted = {}
@@ -35,12 +35,11 @@ def check_mx_record(email):
     except:
         return False  # Retorna False se o domínio não tiver e-mail
 
-@bot.on(events.ChatAction(chats=GROUP_ID))
+@bot.on(events.ChatAction(chats=group_id))
 async def new_member(event):
     """ Quando um usuário entra, pede o e-mail apenas uma vez """
     if event.user_joined or event.user_added:
         user_id = event.user_id
-
         if user_id not in users_restricted:
             users_restricted[user_id] = True  # Marca o usuário como restrito
             welcome_message = (
@@ -57,9 +56,9 @@ async def new_member(event):
                 "✅ Troca de experiências com outros usuários\n\n"
                 "🚀 Teste grátis! Acesse o nosso Site: https://bio.site/AutoCommenterPro."
             )
-            await bot.send_message(GROUP_ID, welcome_message)
+            await bot.send_message(group_id, welcome_message)
 
-@bot.on(events.NewMessage(chats=GROUP_ID))
+@bot.on(events.NewMessage(chats=group_id))
 async def check_email(event):
     """ Verifica se o usuário enviou um e-mail válido, faz verificação real e apaga mensagens """
     user_id = event.sender_id
@@ -69,16 +68,13 @@ async def check_email(event):
         match = re.search(email_regex, message_text)
         if match:
             email = match.group()
-
             # Verifica se o domínio tem servidor de e-mail real
             if check_mx_record(email):
                 save_email(event.sender.first_name, email)  # Salva o e-mail
-
                 await asyncio.sleep(2)  # Aguarda 2 segundos antes de apagar
                 await event.delete()  # Apaga o e-mail do grupo
-
                 del users_restricted[user_id]  # Libera o usuário
-                await bot.send_message(GROUP_ID, f"✅ Obrigado, {event.sender.first_name}! Seu acesso ao grupo foi liberado.")
+                await bot.send_message(group_id, f"✅ Obrigado, {event.sender.first_name}! Seu acesso ao grupo foi liberado.")
             else:
                 await event.delete()  # Apaga a mensagem inválida
                 await bot.send_message(user_id, "❌ O e-mail enviado não parece ser real. Envie um e-mail válido para continuar.")
@@ -86,19 +82,5 @@ async def check_email(event):
             await event.delete()  # Apaga a mensagem inválida
             await bot.send_message(user_id, "❌ Sua mensagem foi apagada. Envie um e-mail válido para continuar no grupo.")
 
-@app.route("/")
-def home():
-    return "Servidor Flask rodando corretamente! 🚀"
-
-@app.route("/start-bot", methods=["POST"])
-def start_bot():
-    """ Inicia o bot manualmente se necessário """
-    try:
-        asyncio.create_task(bot.run_until_disconnected())
-        return jsonify({"success": True, "message": "Bot iniciado com sucesso!"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-if __name__ == "__main__":
-    print("Bot está rodando...")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+print("Bot está rodando...")
+bot.run_until_disconnected()
