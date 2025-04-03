@@ -10,6 +10,10 @@ API_HASH = "7ddc83d894b896975083f985effffe11"  # Substitua pelo seu API_HASH
 
 bot_client = None  # Variável para armazenar o cliente do bot
 
+@app.route("/")
+def home():
+    return "Servidor Flask rodando corretamente! 🚀"
+
 @app.route("/connect-bot", methods=["POST"])
 def connect_bot():
     global bot_client
