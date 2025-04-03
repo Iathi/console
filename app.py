@@ -1,84 +1,85 @@
-from quart import Quart, render_template, request, redirect, url_for, session, jsonify
-from telethon import TelegramClient
+from quart import Quart, request, redirect, url_for, session, jsonify
+from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 import os
 import asyncio
+import re
+import dns.resolver
 
-# Inicialização do app
+# Configurações do bot
+api_id = 24010179
+api_hash = "7ddc83d894b896975083f985effffe11"
+bot_token = "7498558962:AAF0K2FbG1w8DlAWXvT9sPpPEZWe54LOYQ"
+group_id = -1002222583428
+
+# Inicialização do bot
+bot = TelegramClient("bot", api_id, api_hash).start(bot_token=bot_token)
+
+# Expressão regular para validar e-mail
+email_regex = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+"
+
+# Dicionário para rastrear usuários
+users_restricted = {}
+
+# Inicialização do app Quart
 app = Quart(__name__)
 app.secret_key = 'seu_segredo_aqui'
 
-api_id = 24010179  # Substitua pelo seu API ID
-api_hash = '7ddc83d894b896975083f985effffe11'  # Substitua pelo seu API Hash
-
-client = None
-
-# Função para garantir que a pasta 'sessions' exista
 def ensure_sessions_dir():
     if not os.path.exists('sessions'):
         os.makedirs('sessions')
 
-# Função assíncrona para iniciar o cliente Telegram
-async def async_start_client(phone_number):
-    global client
-    ensure_sessions_dir()
+def save_email(user_name, email):
+    with open("emails.txt", "a", encoding="utf-8") as file:
+        file.write(f"{user_name} - {email}\n")
 
-    session_file = f'sessions/{phone_number}.session'
-    
-    if os.path.exists(session_file):
-        with open(session_file, 'r') as f:
-            session_string = f.read().strip()
-            client = TelegramClient(StringSession(session_string), api_id, api_hash)
-    else:
-        client = TelegramClient(StringSession(), api_id, api_hash)
-        await client.connect()
-
-        if not await client.is_user_authorized():
-            try:
-                await client.send_code_request(phone_number)
-                return {"status": "pending", "message": "Código enviado. Aguarde a inserção do código."}
-            except Exception as e:
-                return {"status": "error", "message": str(e)}
-
-    await client.connect()
-    return {"status": "success", "message": "Login bem-sucedido"}
-
-# Rota para iniciar a sessão do usuário
-@app.route('/login', methods=['POST'])
-async def login():
-    data = await request.get_json()
-    phone_number = data.get('phone')
-
-    if not phone_number:
-        return jsonify({"status": "error", "message": "Número de telefone é obrigatório"}), 400
-
-    result = await async_start_client(phone_number)
-    return jsonify(result)
-
-# Rota para inserir o código de verificação
-@app.route('/verify', methods=['POST'])
-async def verify():
-    data = await request.get_json()
-    phone_number = data.get('phone')
-    code = data.get('code')
-
-    if not phone_number or not code:
-        return jsonify({"status": "error", "message": "Telefone e código são obrigatórios"}), 400
-
-    global client
+def check_mx_record(email):
     try:
-        await client.sign_in(phone_number, code)
-        
-        # Salvar a sessão
-        session_string = client.session.save()
-        session_file = f'sessions/{phone_number}.session'
-        with open(session_file, 'w') as f:
-            f.write(session_string)
+        domain = email.split('@')[1]
+        mx_records = dns.resolver.resolve(domain, 'MX')
+        return bool(mx_records)
+    except:
+        return False
 
-        return jsonify({"status": "success", "message": "Sessão salva com sucesso!"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
+@bot.on(events.ChatAction(chats=group_id))
+async def new_member(event):
+    if event.user_joined or event.user_added:
+        user_id = event.user_id
+        if user_id not in users_restricted:
+            users_restricted[user_id] = True
+            welcome_message = (
+                f"👋 Bem-vindo {event.user.first_name}! Envie um e-mail válido para liberar seu acesso ao grupo."
+            )
+            await bot.send_message(group_id, welcome_message)
 
-# Rodar o aplicativo
+@bot.on(events.NewMessage(chats=group_id))
+async def check_email(event):
+    user_id = event.sender_id
+    message_text = event.raw_text
+    
+    if user_id in users_restricted:
+        match = re.search(email_regex, message_text)
+        if match:
+            email = match.group()
+            if check_mx_record(email):
+                save_email(event.sender.first_name, email)
+                await asyncio.sleep(2)
+                await event.delete()
+                del users_restricted[user_id]
+                await bot.send_message(group_id, f"✅ Obrigado, {event.sender.first_name}! Seu acesso ao grupo foi liberado.")
+            else:
+                await event.delete()
+                await bot.send_message(user_id, "❌ O e-mail enviado não parece ser real. Envie um e-mail válido para continuar.")
+        else:
+            await event.delete()
+            await bot.send_message(user_id, "❌ Sua mensagem foi apagada. Envie um e-mail válido para continuar no grupo.")
+
+@app.route('/')
+async def index():
+    return "Bot está rodando!"
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    print("Bot está rodando...")
+    loop = asyncio.get_event_loop()
+    loop.create_task(bot.run_until_disconnected())
+    app.run(debug=True, port=5000)
