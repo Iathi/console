@@ -1,7 +1,2 @@
-Flask
-Quart
-Telethon
-asyncio
-pyfiglet
-requests
+telethon
 dnspython
