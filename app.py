@@ -6,7 +6,7 @@ from telethon import TelegramClient, events
 # Configurações do Telegram API
 api_id = 24010179
 api_hash = "7ddc83d894b896975083f985effffe11"
-bot_token = "7498558962:AAF0K2FbIG1w8DlAWXvT9sPpPEZWe54LOYQ"
+bot_token = "7827111863:AAHzckgjuC8uB6vZgEhxeTZN2Ng63HIqads"
 
 # Inicializando o bot
 bot = TelegramClient("bot_session", api_id, api_hash)
@@ -16,7 +16,7 @@ bot.start(bot_token=bot_token)
 email_regex = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
 
 # ID do grupo
-group_id = -4201935700
+group_id = -1002668466074
 
 # Dicionário para rastrear usuários que precisam enviar um e-mail
 users_restricted = {}
