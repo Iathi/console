@@ -8,8 +8,8 @@ api_id = 24010179
 api_hash = "7ddc83d894b896975083f985effffe11"
 bot_token = "7498558962:AAF0K2FbIG1w8DlAWXvT9sPpPEZWe54LOYQ"
 
-# Inicializando o bot sem .start()
-bot = TelegramClient("bot", api_id, api_hash)
+# Inicializando o bot corretamente
+bot = TelegramClient("bot", api_id, api_hash).start(bot_token=bot_token)
 
 # Expressão regular para validar e-mail
 email_regex = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
@@ -70,12 +70,5 @@ async def check_email(event):
             await event.delete()  
             await bot.send_message(user_id, "❌ Sua mensagem foi apagada. Envie um e-mail válido.")
 
-async def main():
-    await bot.connect()
-    if not await bot.is_user_authorized():
-        await bot.sign_in(bot_token=bot_token)
-    print("Bot está rodando...")
-    await bot.run_until_disconnected()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+print("Bot está rodando...")
+bot.run_until_disconnected()
