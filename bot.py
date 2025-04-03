@@ -12,7 +12,7 @@ bot_token = "7498558962:AAF0K2FbG1w8DlAWXvT9sPpPEZWe54LOYQ"
 bot = TelegramClient("bot", api_id, api_hash).start(bot_token=bot_token)
 
 email_regex = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
-group_id = -1002222583428
+group_id = -4560168934
 users_restricted = {}
 
 def save_email(user_name, email):
