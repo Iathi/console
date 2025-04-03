@@ -16,7 +16,7 @@ bot.start(bot_token=bot_token)
 email_regex = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
 
 # ID do grupo
-group_id = -1002668466074
+group_id = -1002549477646
 
 # Dicionário para rastrear usuários que precisam enviar um e-mail
 users_restricted = {}
